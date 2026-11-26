@@ -1,0 +1,62 @@
+name: Deploy React site to labdevcsharp.net
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the current website
+        uses: actions/checkout@v4
+        with:
+          repository: yonkousop/3dpag-vfinal-prueba1
+          ref: 3d_pag_version_final_2
+          path: app
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Validate App Check configuration
+        env:
+          VITE_RECAPTCHA_SITE_KEY: ${{ vars.VITE_RECAPTCHA_SITE_KEY }}
+        run: |
+          if [ -z "$VITE_RECAPTCHA_SITE_KEY" ]; then
+            echo "::error::Set the VITE_RECAPTCHA_SITE_KEY repository variable before deploying."
+            exit 1
+          fi
+      - name: Install dependencies and build
+        working-directory: app
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+        env:
+          VITE_CONTACT_API_URL: https://us-central1-gen-lang-client-0614337099.cloudfunctions.net/submitContactInquiry
+          VITE_RECAPTCHA_SITE_KEY: ${{ vars.VITE_RECAPTCHA_SITE_KEY }}
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
